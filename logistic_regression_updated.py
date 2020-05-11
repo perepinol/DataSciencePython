@@ -61,7 +61,8 @@ def create_test_submission(filename, prediction):
     f = open(filename, 'w')
     f.write('\n'.join(content))
     f.close()
-    print 'Saved'
+    print('Saved')
+
 
 # This loop essentially from Paul's starter code
 def cv_loop(X, y, model, N):
@@ -73,12 +74,12 @@ def cv_loop(X, y, model, N):
         model.fit(X_train, y_train)
         preds = model.predict_proba(X_cv)[:,1]
         auc = metrics.auc_score(y_cv, preds)
-        print "AUC (fold %d/%d): %f" % (i + 1, N, auc)
+        print("AUC (fold %d/%d): %f" % (i + 1, N, auc))
         mean_auc += auc
     return mean_auc/N
     
 def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):    
-    print "Reading dataset..."
+    print("Reading dataset...")
     train_data = pd.read_csv(train)
     test_data = pd.read_csv(test)
     all_data = np.vstack((train_data.ix[:,1:-1], test_data.ix[:,1:-1]))
@@ -86,8 +87,8 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
     num_train = np.shape(train_data)[0]
     
     # Transform data
-    print "Transforming data..."
-    dp = group_data(all_data, degree=2) 
+    print("Transforming data...")
+    dp = group_data(all_data, degree=2)
     dt = group_data(all_data, degree=3)
 
     y = array(train_data.ACTION)
@@ -108,8 +109,8 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
     # Xts holds one hot encodings for each individual feature in memory
     # speeding up feature selection 
     Xts = [OneHotEncoder(X_train_all[:,[i]])[0] for i in range(num_features)]
-    
-    print "Performing greedy feature selection..."
+
+    print("Performing greedy feature selection...")
     score_hist = []
     N = 10
     good_features = set([])
@@ -122,17 +123,17 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
                 Xt = sparse.hstack([Xts[j] for j in feats]).tocsr()
                 score = cv_loop(Xt, y, model, N)
                 scores.append((score, f))
-                print "Feature: %i Mean AUC: %f" % (f, score)
+                print("Feature: %i Mean AUC: %f" % (f, score))
         good_features.add(sorted(scores)[-1][1])
         score_hist.append(sorted(scores)[-1])
-        print "Current features: %s" % sorted(list(good_features))
-    
+        print("Current features: %s" % sorted(list(good_features)))
+
     # Remove last added feature from good_features
     good_features.remove(score_hist[-1][1])
     good_features = sorted(list(good_features))
-    print "Selected features %s" % good_features
-    
-    print "Performing hyperparameter selection..."
+    print("Selected features %s" % good_features)
+
+    print("Performing hyperparameter selection...")
     # Hyperparameter selection loop
     score_hist = []
     Xt = sparse.hstack([Xts[j] for j in good_features]).tocsr()
@@ -141,20 +142,20 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
         model.C = C
         score = cv_loop(Xt, y, model, N)
         score_hist.append((score,C))
-        print "C: %f Mean AUC: %f" %(C, score)
+        print("C: %f Mean AUC: %f" % (C, score))
     bestC = sorted(score_hist)[-1][1]
-    print "Best C value: %f" % (bestC)
-    
-    print "Performing One Hot Encoding on entire dataset..."
+    print("Best C value: %f" % (bestC))
+
+    print("Performing One Hot Encoding on entire dataset...")
     Xt = np.vstack((X_train_all[:,good_features], X_test_all[:,good_features]))
     Xt, keymap = OneHotEncoder(Xt)
     X_train = Xt[:num_train]
     X_test = Xt[num_train:]
-    
-    print "Training full model..."
+
+    print("Training full model...")
     model.fit(X_train, y)
-    
-    print "Making prediction and saving results..."
+
+    print("Making prediction and saving results...")
     preds = model.predict_proba(X_test)[:,1]
     create_test_submission(submit, preds)
     
