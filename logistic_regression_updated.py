@@ -7,8 +7,9 @@ __date__ = '14-06-2013'
 import json
 
 import pymongo as pymongo
-from numpy import array, hstack
-from sklearn import metrics, cross_validation, linear_model
+from numpy import array
+from sklearn import metrics, linear_model
+from sklearn.model_selection import train_test_split
 from scipy import sparse
 from itertools import combinations
 
@@ -61,10 +62,12 @@ def OneHotEncoder(data, keymap=None):
 
 
 def create_test_submission(filename, prediction):
-    content = {}
+    content = []
     for i, p in enumerate(prediction):
-        content['id'] = '%i' % (i + 1)
-        content['ACTION'] = '%f' % p
+        content.append({
+            'id': '%i' % (i + 1),
+            'ACTION': '%f' % p
+        })
     f = open(filename, 'w')
     json.dump(content, f)
     f.close()
@@ -75,12 +78,12 @@ def create_test_submission(filename, prediction):
 def cv_loop(X, y, model, N):
     mean_auc = 0.
     for i in range(N):
-        X_train, X_cv, y_train, y_cv = cross_validation.train_test_split(
+        X_train, X_cv, y_train, y_cv = train_test_split(
             X, y, test_size=.20,
             random_state=i * SEED)
         model.fit(X_train, y_train)
         preds = model.predict_proba(X_cv)[:, 1]
-        auc = metrics.auc_score(y_cv, preds)
+        auc = metrics.roc_auc_score(y_cv, preds)
         print("AUC (fold %d/%d): %f" % (i + 1, N, auc))
         mean_auc += auc
     return mean_auc / N
@@ -89,9 +92,9 @@ def cv_loop(X, y, model, N):
 def main(user, password):
     print("Reading dataset...")
     client = pymongo.MongoClient("mongodb://%s:%s@businessdb:27017" % (user, password))
-    train_data = pd.read_json(json.dumps(client.train.find()), orient='records')
-    test_data = pd.read_csv(json.dumps(client.test.find()), orient='records')
-    all_data = np.vstack((train_data.ix[:, 1:-1], test_data.ix[:, 1:-1]))
+    train_data = pd.read_json(json.dumps(list(client.test.train.find({}, {'_id': 0}))), orient='records')
+    test_data = pd.read_json(json.dumps(list(client.test.test.find({}, {'_id': 0}))), orient='records')
+    all_data = np.vstack((train_data.iloc[:, 1:], test_data.iloc[:, :]))
 
     num_train = np.shape(train_data)[0]
 
@@ -100,7 +103,7 @@ def main(user, password):
     dp = group_data(all_data, degree=2)
     dt = group_data(all_data, degree=3)
 
-    y = array(train_data.ACTION)
+    y = array(train_data.iloc[:, 0])
     X = all_data[:num_train]
     X_2 = dp[:num_train]
     X_3 = dt[:num_train]
